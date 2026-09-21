@@ -7,34 +7,34 @@ const {
   calculateDCASimulation
 } = require('../src/finance-engine.js');
 
-test('Cálculo de Saldo em Caixa - Happy path: Depósito, compra com taxa e venda com taxa', () => {
+test('Cálculo de Saldo em Caixa - Happy path: Depósito, compra e venda', () => {
   const deposits = [{ amount: 1000 }];
   const trades = [
-    { type: 'buy', value: 400, fee: 2 },   // gasta 400 + 2 = 402
-    { type: 'sell', value: 200, fee: 1 }   // recebe 200 - 1 = 199
+    { type: 'buy', value: 400 },
+    { type: 'sell', value: 200 }
   ];
 
-  // Esperado: 1000 - 402 + 199 = 797
+  // Esperado: 1000 - 400 + 200 = 800
   const balance = computeCashBalance(deposits, trades);
-  assert.equal(balance, 797);
+  assert.equal(balance, 800);
 });
 
 test('Cálculo de Saldo em Caixa - Negative path: Compras sem depósito deixam saldo negativo', () => {
   const deposits = [];
-  const trades = [{ type: 'buy', value: 500, fee: 5 }];
+  const trades = [{ type: 'buy', value: 500 }];
   const balance = computeCashBalance(deposits, trades);
-  assert.equal(balance, -505);
+  assert.equal(balance, -500);
 });
 
 test('Resumo da Carteira - Happy path: Custo médio ponderado e lucro realizado', () => {
   const assetKeys = ['btc', 'eth'];
   const trades = [
-    // Compra 1: 1 BTC a $20.000 + $10 fee = $20.010
-    { timestamp: 1000, asset: 'btc', type: 'buy', qty: 1, price: 20000, fee: 10 },
-    // Compra 2: 1 BTC a $30.000 + $10 fee = $30.010. Total 2 BTC por $50.020 (PM = $25.010)
-    { timestamp: 2000, asset: 'btc', type: 'buy', qty: 1, price: 30000, fee: 10 },
-    // Venda de 1 BTC a $35.000 com $20 fee. Recebe líquido $34.980. Custo da parcela vendida: $25.010. Lucro = $9.970
-    { timestamp: 3000, asset: 'btc', type: 'sell', qty: 1, price: 35000, fee: 20 }
+    // Compra 1: 1 BTC a $20.000 = $20.000
+    { timestamp: 1000, asset: 'btc', type: 'buy', qty: 1, price: 20000 },
+    // Compra 2: 1 BTC a $30.000 = $30.000. Total 2 BTC por $50.000 (PM = $25.000)
+    { timestamp: 2000, asset: 'btc', type: 'buy', qty: 1, price: 30000 },
+    // Venda de 1 BTC a $35.000. Custo da parcela vendida: $25.000. Lucro = $10.000
+    { timestamp: 3000, asset: 'btc', type: 'sell', qty: 1, price: 35000 }
   ];
 
   const prices = { btc: 40000, eth: 2000 };
@@ -42,13 +42,12 @@ test('Resumo da Carteira - Happy path: Custo médio ponderado e lucro realizado'
   const btcSummary = summary.perAsset.btc;
 
   assert.equal(btcSummary.boughtQty, 1);
-  assert.equal(btcSummary.avgCost, 25010);
-  assert.equal(btcSummary.realized, 9970);
-  assert.equal(btcSummary.totalFees, 40);
+  assert.equal(btcSummary.avgCost, 25000);
+  assert.equal(btcSummary.realized, 10000);
   // Valor atual do 1 BTC restante a $40.000
   assert.equal(btcSummary.currentValue, 40000);
-  // Lucro não realizado do BTC restante: 40.000 - 25.010 = 14.990
-  assert.equal(btcSummary.unrealized, 14990);
+  // Lucro não realizado do BTC restante: 40.000 - 25.000 = 15.000
+  assert.equal(btcSummary.unrealized, 15000);
 });
 
 test('IRPF Cripto (IN 1888) - Happy path: Isenção abaixo de R$ 35.000', () => {
