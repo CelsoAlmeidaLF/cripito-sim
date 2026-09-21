@@ -1,0 +1,95 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const {
+  computeCashBalance,
+  computeSummary,
+  computeTaxMonthSummary,
+  calculateDCASimulation
+} = require('../src/finance-engine.js');
+
+test('Cálculo de Saldo em Caixa - Happy path: Depósito, compra com taxa e venda com taxa', () => {
+  const deposits = [{ amount: 1000 }];
+  const trades = [
+    { type: 'buy', value: 400, fee: 2 },   // gasta 400 + 2 = 402
+    { type: 'sell', value: 200, fee: 1 }   // recebe 200 - 1 = 199
+  ];
+
+  // Esperado: 1000 - 402 + 199 = 797
+  const balance = computeCashBalance(deposits, trades);
+  assert.equal(balance, 797);
+});
+
+test('Cálculo de Saldo em Caixa - Negative path: Compras sem depósito deixam saldo negativo', () => {
+  const deposits = [];
+  const trades = [{ type: 'buy', value: 500, fee: 5 }];
+  const balance = computeCashBalance(deposits, trades);
+  assert.equal(balance, -505);
+});
+
+test('Resumo da Carteira - Happy path: Custo médio ponderado e lucro realizado', () => {
+  const assetKeys = ['btc', 'eth'];
+  const trades = [
+    // Compra 1: 1 BTC a $20.000 + $10 fee = $20.010
+    { timestamp: 1000, asset: 'btc', type: 'buy', qty: 1, price: 20000, fee: 10 },
+    // Compra 2: 1 BTC a $30.000 + $10 fee = $30.010. Total 2 BTC por $50.020 (PM = $25.010)
+    { timestamp: 2000, asset: 'btc', type: 'buy', qty: 1, price: 30000, fee: 10 },
+    // Venda de 1 BTC a $35.000 com $20 fee. Recebe líquido $34.980. Custo da parcela vendida: $25.010. Lucro = $9.970
+    { timestamp: 3000, asset: 'btc', type: 'sell', qty: 1, price: 35000, fee: 20 }
+  ];
+
+  const prices = { btc: 40000, eth: 2000 };
+  const summary = computeSummary(assetKeys, trades, prices);
+  const btcSummary = summary.perAsset.btc;
+
+  assert.equal(btcSummary.boughtQty, 1);
+  assert.equal(btcSummary.avgCost, 25010);
+  assert.equal(btcSummary.realized, 9970);
+  assert.equal(btcSummary.totalFees, 40);
+  // Valor atual do 1 BTC restante a $40.000
+  assert.equal(btcSummary.currentValue, 40000);
+  // Lucro não realizado do BTC restante: 40.000 - 25.010 = 14.990
+  assert.equal(btcSummary.unrealized, 14990);
+});
+
+test('IRPF Cripto (IN 1888) - Happy path: Isenção abaixo de R$ 35.000', () => {
+  const assetKeys = ['btc'];
+  const brlRate = 5.0; // 1 USD = R$ 5,00
+  const trades = [
+    { timestamp: new Date('2026-09-02T10:00:00Z').getTime(), asset: 'btc', type: 'buy', qty: 1, price: 20000, fee: 0 },
+    // Venda de $5.000 USD * 5.0 = R$ 25.000 BRL (abaixo do limite de R$ 35.000)
+    { timestamp: new Date('2026-09-15T12:00:00Z').getTime(), asset: 'btc', type: 'sell', qty: 0.2, price: 25000, fee: 0 }
+  ];
+
+  const tax = computeTaxMonthSummary(assetKeys, trades, '2026-09', brlRate);
+  assert.equal(tax.totalAlienationBRL, 25000);
+  assert.equal(tax.isExempt, true);
+  assert.equal(tax.taxEstimatedBRL, 0);
+  assert.equal(tax.monthSales.length, 1);
+});
+
+test('IRPF Cripto (IN 1888) - Negative path: Ultrapassando R$ 35.000 gera imposto sobre ganho de capital', () => {
+  const assetKeys = ['btc'];
+  const brlRate = 5.0;
+  const trades = [
+    // Compra 1 BTC a $20.000
+    { timestamp: new Date('2026-09-01T10:00:00Z').getTime(), asset: 'btc', type: 'buy', qty: 1, price: 20000, fee: 0 },
+    // Vende 1 BTC a $30.000 (Alienação = $30.000 * 5 = R$ 150.000, Lucro = $10.000 * 5 = R$ 50.000)
+    { timestamp: new Date('2026-09-20T10:00:00Z').getTime(), asset: 'btc', type: 'sell', qty: 1, price: 30000, fee: 0 }
+  ];
+
+  const tax = computeTaxMonthSummary(assetKeys, trades, '2026-09', brlRate);
+  assert.equal(tax.totalAlienationBRL, 150000);
+  assert.equal(tax.isExempt, false);
+  assert.equal(tax.totalRealizedGainBRL, 50000);
+  // 15% sobre o ganho de capital de R$ 50.000 = R$ 7.500
+  assert.equal(tax.taxEstimatedBRL, 7500);
+});
+
+test('Simulador DCA - Happy path: Gera projeção correta de aportes periódicos', () => {
+  // $100/mês por 12 meses (12 aportes de $100 = $1200 investidos)
+  const dca = calculateDCASimulation(50000, 100, 30, 12, 5);
+  assert.equal(dca.totalInvestedUSD, 1200);
+  assert.ok(dca.accumulatedCoins > 0);
+  assert.ok(dca.finalValueUSD > 0);
+  assert.ok(dca.avgCostUSD > 0);
+});
