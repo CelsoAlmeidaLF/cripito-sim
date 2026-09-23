@@ -46,6 +46,10 @@ A aplicação combina um conversor com cotações em tempo real a um gerenciador
   - Projeção de aportes recorrentes com intervalos customizáveis (diário, semanal, quinzenal, mensal).
   - Comparativo de rentabilidade entre estratégia DCA e aporte único (*Lump Sum*), considerando ciclos de volatilidade.
 
+- **Meta de Lucro & Projeção de Capital**:
+  - Cálculo dinâmico do capital necessário a partir do lucro desejado pelo usuário (mensal ou anual).
+  - Tabela comparativa com colunas focadas: Cenário de Mercado, Rendimento Estimado, Capital em Dólares e Margem de Segurança.
+
 - **Relatório Fiscal IRPF (Brasil - IN 1888)**:
   - Apuração mensal automática de alienações em Reais (BRL).
   - Alerta do limite de isenção de **R$ 35.000,00/mês**.

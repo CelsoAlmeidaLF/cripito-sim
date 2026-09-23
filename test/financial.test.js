@@ -4,7 +4,8 @@ const {
   computeCashBalance,
   computeSummary,
   computeTaxMonthSummary,
-  calculateDCASimulation
+  calculateDCASimulation,
+  calculateTargetProfitScenarios
 } = require('../src/finance-engine.js');
 
 test('Cálculo de Saldo em Caixa - Happy path: Depósito, compra e venda', () => {
@@ -91,4 +92,41 @@ test('Simulador DCA - Happy path: Gera projeção correta de aportes periódicos
   assert.ok(dca.accumulatedCoins > 0);
   assert.ok(dca.finalValueUSD > 0);
   assert.ok(dca.avgCostUSD > 0);
+});
+
+test('Calculadora de Meta de Lucro - Happy path: U$ 4 por mês ($48/ano)', () => {
+  const result = calculateTargetProfitScenarios(4, 'month');
+  assert.equal(result.annualProfitUSD, 48);
+  assert.equal(result.rows.length, 4);
+
+  // Conservador 5% -> 48 / 0.05 = 960
+  const conservador = result.rows.find(r => r.cenario.includes('Conservador'));
+  assert.equal(conservador.capitalUSD, 960);
+  assert.equal(conservador.rendimentoEstimado, '5% a.a.');
+  assert.equal(conservador.margemSeguranca, 'Alta proteção contra quedas');
+
+  // Moderado 10% -> 48 / 0.10 = 480
+  const moderado = result.rows.find(r => r.cenario.includes('Moderado'));
+  assert.equal(moderado.capitalUSD, 480);
+  assert.equal(moderado.rendimentoEstimado, '10% a.a.');
+  assert.equal(moderado.margemSeguranca, 'Média de médio prazo');
+
+  // Ciclo de Alta 15% -> 48 / 0.15 = 320
+  const alta = result.rows.find(r => r.cenario.includes('Ciclo de Alta'));
+  assert.equal(alta.capitalUSD, 320);
+  assert.equal(alta.rendimentoEstimado, '15% a.a.');
+  assert.equal(alta.margemSeguranca, 'Depende de forte valorização');
+
+  // Lending 2% -> 48 / 0.02 = 2400
+  const lending = result.rows.find(r => r.cenario.includes('Lending'));
+  assert.equal(lending.capitalUSD, 2400);
+  assert.equal(lending.rendimentoEstimado, '2% a.a.');
+  assert.equal(lending.margemSeguranca, 'Renda passiva (sem vender moedas)');
+});
+
+test('Calculadora de Meta de Lucro - Happy path: U$ 48 por ano direto', () => {
+  const result = calculateTargetProfitScenarios(48, 'year');
+  assert.equal(result.annualProfitUSD, 48);
+  const conservador = result.rows.find(r => r.cenario.includes('Conservador'));
+  assert.equal(conservador.capitalUSD, 960);
 });
